@@ -11,28 +11,11 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Install Build Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential libncurses5-dev gawk git gettext libssl-dev zlib1g-dev wget unzip rsync file
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-      - name: Download and Setup OpenWrt SDK
-        run: |
-          wget https://downloads.openwrt.org/releases/25.12.4/targets/ramips/mt7621/openwrt-sdk-25.12.4-ramips-mt7621_gcc-13.3.0.Linux-x86_64.tar.xz || \
-          wget https://downloads.openwrt.org/releases/25.12.4/targets/ramips/mt7621/openwrt-sdk-25.12.4-ramips-mt7621.tar.xz
-          
-          tar -xf openwrt-sdk-*.tar.xz
-          mv openwrt-sdk-* sdk
-          cd sdk
-
-          ./scripts/feeds update -a
-          ./scripts/feeds install mdk4
-
-          make defconfig
-          make package/mdk4/compile V=s
-
-      - name: Upload Built IPK Package
-        uses: actions/upload-artifact@v4
+      - name: Build OpenWrt Package using Official SDK Action
+        uses: openwrt/gh-action-sdk@main
         with:
-          name: mdk4-ipk
-          path: sdk/bin/packages/ramips_mt7621/*/base/mdk4_*.ipk
+          arch: ramips_mt7621
+          package: mdk4
