@@ -1,4 +1,4 @@
-name: Docker Image CI
+name: Build mdk4 for Phicomm K2P
 
 on:
   push:
@@ -10,11 +10,29 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Run OpenWrt SDK Build Script
-      run: |
-        chmod +x build.sh
-        ./build.sh ramips mt7621 25.12.4
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libncurses5-dev gawk git gettext libssl-dev python3-distutils zlib1g-dev wget unzip rsync file
+
+      - name: Download and Setup OpenWrt SDK
+        run: |
+          wget https://downloads.openwrt.org/releases/25.12.4/targets/ramips/mt7621/openwrt-sdk-25.12.4-ramips-mt7621_gcc-13.3.0.Linux-x86_64.tar.xz || \
+          wget https://downloads.openwrt.org/releases/25.12.4/targets/ramips/mt7621/openwrt-sdk-25.12.4-ramips-mt7621.tar.xz
+          
+          tar -xf openwrt-sdk-*.tar.xz
+          mv openwrt-sdk-* sdk
+          cd sdk
+
+          ./scripts/feeds update -a
+          ./scripts/feeds install mdk4
+
+          make defconfig
+          make package/mdk4/compile V=s
+
+      - name: Upload Built IPK Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: mdk4-ipk
+          path: sdk/bin/packages/ramips_mt7621/*/base/mdk4_*.ipk
