@@ -17,4 +17,4 @@ jobs:
     - name: Run OpenWrt SDK Build Script
       run: |
         chmod +x build.sh
-        ./build.sh
+        ./build.sh ramips mt7621 25.12.4
