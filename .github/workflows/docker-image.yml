@@ -14,8 +14,13 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Build OpenWrt Package using Official SDK Action
+      - name: Build OpenWrt Package
         uses: openwrt/gh-action-sdk@main
         with:
-          arch: ramips_mt7621
           package: mdk4
+
+      - name: Upload Built IPK Package
+        uses: actions/upload-artifact@v4
+        with:
+          name: mdk4-ipk
+          path: bin/packages/**/*.ipk
