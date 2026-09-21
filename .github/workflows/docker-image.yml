@@ -14,7 +14,7 @@ jobs:
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libncurses5-dev gawk git gettext libssl-dev python3-distutils zlib1g-dev wget unzip rsync file
+          sudo apt-get install -y build-essential libncurses5-dev gawk git gettext libssl-dev zlib1g-dev wget unzip rsync file
 
       - name: Download and Setup OpenWrt SDK
         run: |
