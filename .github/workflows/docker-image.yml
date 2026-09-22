@@ -2,28 +2,44 @@ name: Build mdk4 for Phicomm K2P
 
 on:
   push:
-    branches: [ "master" ]
+    branches:
+      - master
   pull_request:
-    branches: [ "master" ]
+    branches:
+      - master
   workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Build OpenWrt Package
+      - name: Prepare directories
+        run: |
+          mkdir -p artifacts feed
+
+      - name: Build mdk4
         uses: openwrt/gh-action-sdk@main
-        with:
-          package: mdk4
+        env:
+          ARCH: mipsel_24kc-24.10
+          PACKAGES: mdk4
+          FEED_DIR: ${{ github.workspace }}/feed
+          ARTIFACTS_DIR: ${{ github.workspace }}/artifacts
+
+      - name: List generated packages
+        run: |
+          echo "Generated packages:"
+          find artifacts feed -type f \( -name "*.ipk" -o -name "*.apk" \) -print
 
       - name: Upload mdk4 package
         uses: actions/upload-artifact@v4
         with:
-          name: mdk4-package
+          name: mdk4-phicomm-k2p
           path: |
-            bin/packages/**/*.ipk
-            bin/targets/**/*.ipk
-            **/mdk4*.ipk
+            artifacts/**/*.ipk
+            artifacts/**/*.apk
+            feed/**/*.ipk
+            feed/**/*.apk
