@@ -24,7 +24,7 @@ jobs:
       - name: Build mdk4
         uses: openwrt/gh-action-sdk@main
         env:
-          ARCH: mipsel_24kc-24.10
+          ARCH: mipsel_24kc
           PACKAGES: mdk4
           FEED_DIR: ${{ github.workspace }}/feed
           ARTIFACTS_DIR: ${{ github.workspace }}/artifacts
