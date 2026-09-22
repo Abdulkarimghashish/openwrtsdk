@@ -1,45 +1,28 @@
 name: Build mdk4 for Phicomm K2P
-
-on:
-  push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - master
-  workflow_dispatch:
+on: [push]
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-
+    runs-on: ubuntu-22.04
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Prepare directories
+      - name: Get mdk4 binary for K2P
         run: |
-          mkdir -p artifacts feed
+          mkdir work && cd work
+          # نحمل النسخة الرسمية المتوافقة مع معالج mt7621 mipsel_24kc
+          wget https://downloads.openwrt.org/releases/23.05.5/packages/mipsel_24kc/packages/mdk4_4.2-3_mipsel_24kc.ipk
+          tar -xzf mdk4_*.ipk
+          tar -xzf data.tar.gz
+          ls -lh./usr/bin/mdk4
+          file./usr/bin/mdk4
+          cp./usr/bin/mdk4../mdk4-K2P-ready
+          chmod +x../mdk4-K2P-ready
+          cd..
+          ls -lh mdk4-K2P-ready
 
-      - name: Build mdk4
-        uses: openwrt/gh-action-sdk@main
-        env:
-          ARCH: mipsel_24kc
-          PACKAGES: mdk4
-          FEED_DIR: ${{ github.workspace }}/feed
-          ARTIFACTS_DIR: ${{ github.workspace }}/artifacts
-
-      - name: List generated packages
-        run: |
-          echo "Generated packages:"
-          find artifacts feed -type f \( -name "*.ipk" -o -name "*.apk" \) -print
-
-      - name: Upload mdk4 package
+      - name: Upload ready binary
         uses: actions/upload-artifact@v4
         with:
-          name: mdk4-phicomm-k2p
-          path: |
-            artifacts/**/*.ipk
-            artifacts/**/*.apk
-            feed/**/*.ipk
-            feed/**/*.apk
+          name: mdk4-K2P-READY
+          path: mdk4-K2P-ready
