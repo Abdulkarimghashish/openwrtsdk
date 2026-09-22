@@ -1,28 +1,173 @@
-name: Build mdk4 for Phicomm K2P
-on: [push]
+name: Build mdk4 for Phicomm K2P - OpenWrt 25.12.4
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    steps:
-      - uses: actions/checkout@v4
 
-      - name: Get mdk4 binary for K2P
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
         run: |
-          mkdir work && cd work
-          # نحمل النسخة الرسمية المتوافقة مع معالج mt7621 mipsel_24kc
-          wget https://downloads.openwrt.org/releases/23.05.5/packages/mipsel_24kc/packages/mdk4_4.2-3_mipsel_24kc.ipk
-          tar -xzf mdk4_*.ipk
-          tar -xzf data.tar.gz
-          ls -lh./usr/bin/mdk4
-          file./usr/bin/mdk4
-          cp./usr/bin/mdk4../mdk4-K2P-ready
-          chmod +x../mdk4-K2P-ready
-          cd..
-          ls -lh mdk4-K2P-ready
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            gettext \
+            libncurses-dev \
+            gawk \
+            python3 \
+            rsync \
+            unzip \
+            zlib1g-dev \
+            libssl-dev \
+            wget \
+            zstd \
+            file \
+            binutils
+
+      - name: Download OpenWrt 25.12.4 SDK
+        run: |
+          wget -O sdk.tar.zst \
+            https://downloads.openwrt.org/releases/25.12.4/targets/ramips/mt7621/openwrt-sdk-25.12.4-ramips-mt7621_gcc-14.3.0_musl.Linux-x86_64.tar.zst
+
+          tar --zstd -xf sdk.tar.zst
+
+          SDK_DIR=$(find . -maxdepth 1 -type d -name 'openwrt-sdk-*' | head -n1)
+
+          echo "SDK_DIR=$SDK_DIR" >> "$GITHUB_ENV"
+
+      - name: Prepare SDK
+        run: |
+          cd "$SDK_DIR"
+
+          ./scripts/feeds update -a
+          ./scripts/feeds install libnl-core libnl-genl libnl-route libpcap
+
+      - name: Create mdk4 package
+        run: |
+          cd "$SDK_DIR"
+
+          mkdir -p package/mdk4
+
+          cat > package/mdk4/Makefile <<'EOF'
+          include $(TOPDIR)/rules.mk
+
+          PKG_NAME:=mdk4
+          PKG_VERSION:=4.2
+          PKG_RELEASE:=1
+
+          PKG_SOURCE_PROTO:=git
+          PKG_SOURCE_URL:=https://github.com/aircrack-ng/mdk4.git
+          PKG_SOURCE_VERSION:=4.2
+          PKG_MIRROR_HASH:=skip
+
+          PKG_LICENSE:=GPL-3.0-or-later
+          PKG_LICENSE_FILES:=LICENSE
+
+          PKG_BUILD_PARALLEL:=1
+
+          include $(INCLUDE_DIR)/package.mk
+
+          define Package/mdk4
+            SECTION:=net
+            CATEGORY:=Network
+            DEPENDS:=+libnl-core +libnl-genl +libnl-route +libpcap
+            TITLE:=MDK4 WiFi Testing Tool
+            URL:=https://github.com/aircrack-ng/mdk4
+          endef
+
+          define Package/mdk4/description
+           MDK4 WiFi testing and security auditing tool.
+          endef
+
+          define Package/mdk4/install
+            $(INSTALL_DIR) $(1)/usr/bin
+            $(INSTALL_BIN) $(PKG_BUILD_DIR)/mdk4 $(1)/usr/bin/mdk4
+          endef
+
+          $(eval $(call BuildPackage,mdk4))
+          EOF
+
+          cat package/mdk4/Makefile
+
+      - name: Configure SDK
+        run: |
+          cd "$SDK_DIR"
+
+          make defconfig
+
+      - name: Build mdk4
+        run: |
+          cd "$SDK_DIR"
+
+          make package/mdk4/compile V=s -j2
+
+      - name: Collect package
+        run: |
+          mkdir -p ready_binary
+
+          find "$SDK_DIR/bin/packages" \
+            -type f \
+            -name 'mdk4*.ipk' \
+            -exec cp {} ready_binary/ \;
+
+          ls -lh ready_binary/
+
+      - name: Extract binary
+        run: |
+          cd ready_binary
+
+          IPK=$(find . -name 'mdk4*.ipk' | head -n1)
+
+          echo "IPK=$IPK"
+
+          mkdir extracted
+
+          cd extracted
+
+          ar x "../$(basename "$IPK")"
+
+          if [ -f data.tar.zst ]; then
+            tar --zstd -xf data.tar.zst
+          elif [ -f data.tar.gz ]; then
+            tar -xzf data.tar.gz
+          elif [ -f data.tar.xz ]; then
+            tar -xJf data.tar.xz
+          else
+            echo "ERROR: data archive not found"
+            exit 1
+          fi
+
+          find . -type f -name mdk4 -ls
+
+          cp ./usr/bin/mdk4 ../../mdk4-K2P-25.12.4
+
+          chmod +x ../../mdk4-K2P-25.12.4
+
+          file ../../mdk4-K2P-25.12.4
+
+      - name: Test binary
+        run: |
+          file mdk4-K2P-25.12.4
+          ls -lh mdk4-K2P-25.12.4
+
+      - name: Upload IPK
+        uses: actions/upload-artifact@v4
+        with:
+          name: mdk4-K2P-IPK-25.12.4
+          path: ready_binary/*.ipk
 
       - name: Upload ready binary
         uses: actions/upload-artifact@v4
         with:
-          name: mdk4-K2P-READY
-          path: mdk4-K2P-ready
+          name: mdk4-K2P-READY-25.12.4
+          path: mdk4-K2P-25.12.4
