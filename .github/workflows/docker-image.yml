@@ -45,12 +45,12 @@ jobs:
 
           echo "SDK_DIR=$SDK_DIR" >> "$GITHUB_ENV"
 
-      - name: Prepare SDK
+      - name: Prepare SDK Feeds (Fast mode)
         run: |
           cd "$SDK_DIR"
-
-          ./scripts/feeds update -a
-          ./scripts/feeds install libnl-core libnl-genl libnl-route libpcap
+          # تخطي التحديثات الثقيلة والاكتفاء بتحديث حزم الشبكة فقط لتوفير الوقت
+          ./scripts/feeds update packages
+          ./scripts/feeds install libnl-core libnl-genl libpcap
 
       - name: Create mdk4 package
         run: |
@@ -67,51 +67,36 @@ jobs:
 
           PKG_SOURCE_PROTO:=git
           PKG_SOURCE_URL:=https://github.com/aircrack-ng/mdk4.git
-          PKG_SOURCE_VERSION:=4.2
+          PKG_SOURCE_VERSION:=v4.2
           PKG_MIRROR_HASH:=skip
 
           PKG_LICENSE:=GPL-3.0-or-later
           PKG_LICENSE_FILES:=LICENSE
-
-          PKG_BUILD_PARALLEL:=1
 
           include $(INCLUDE_DIR)/package.mk
 
           define Package/mdk4
             SECTION:=net
             CATEGORY:=Network
-            DEPENDS:=+libnl-core +libnl-genl +libnl-route +libpcap
+            DEPENDS:=+libnl-core +libnl-genl +libpcap
             TITLE:=MDK4 WiFi Testing Tool
-            URL:=https://github.com/aircrack-ng/mdk4
-          endef
-
-          define Package/mdk4/description
-           MDK4 WiFi testing and security auditing tool.
           endef
 
           define Package/mdk4/install
             $(INSTALL_DIR) $(1)/usr/bin
-            $(INSTALL_BIN) $(PKG_BUILD_DIR)/mdk4 $(1)/usr/bin/mdk4
+            $(INSTALL_BIN) $(PKG_BUILD_DIR)/src/mdk4 $(1)/usr/bin/mdk4
           endef
 
           $(eval $(call BuildPackage,mdk4))
           EOF
 
-          cat package/mdk4/Makefile
-
-      - name: Configure SDK
+      - name: Build mdk4 (Single-thread & Verbose to prevent hanging)
         run: |
           cd "$SDK_DIR"
+          # استخدام البناء المفرد V=s لضمان ظهور أي خطأ بوضوح وعدم تعليق السيرفر بصمت
+          make package/mdk4/compile V=s -j1
 
-          make defconfig
-
-      - name: Build mdk4
-        run: |
-          cd "$SDK_DIR"
-
-          make package/mdk4/compile V=s -j2
-
-      - name: Collect package
+      - name: Collect and Extract package
         run: |
           mkdir -p ready_binary
 
@@ -120,54 +105,23 @@ jobs:
             -name 'mdk4*.ipk' \
             -exec cp {} ready_binary/ \;
 
-          ls -lh ready_binary/
-
-      - name: Extract binary
-        run: |
           cd ready_binary
-
           IPK=$(find . -name 'mdk4*.ipk' | head -n1)
-
-          echo "IPK=$IPK"
-
-          mkdir extracted
-
-          cd extracted
-
-          ar x "../$(basename "$IPK")"
-
-          if [ -f data.tar.zst ]; then
-            tar --zstd -xf data.tar.zst
-          elif [ -f data.tar.gz ]; then
-            tar -xzf data.tar.gz
-          elif [ -f data.tar.xz ]; then
-            tar -xJf data.tar.xz
-          else
-            echo "ERROR: data archive not found"
+          
+          if [ -z "$IPK" ]; then
+            echo "ERROR: IPK not found!"
             exit 1
           fi
 
-          find . -type f -name mdk4 -ls
+          mkdir extracted && cd extracted
+          ar x "../$(basename "$IPK")"
+          tar -xzf data.tar.gz || tar --zstd -xf data.tar.zst
 
           cp ./usr/bin/mdk4 ../../mdk4-K2P-25.12.4
-
           chmod +x ../../mdk4-K2P-25.12.4
-
-          file ../../mdk4-K2P-25.12.4
-
-      - name: Test binary
-        run: |
-          file mdk4-K2P-25.12.4
-          ls -lh mdk4-K2P-25.12.4
-
-      - name: Upload IPK
-        uses: actions/upload-artifact@v4
-        with:
-          name: mdk4-K2P-IPK-25.12.4
-          path: ready_binary/*.ipk
 
       - name: Upload ready binary
         uses: actions/upload-artifact@v4
         with:
           name: mdk4-K2P-READY-25.12.4
-          path: mdk4-K2P-25.12.4
+          path: mdk4-K2P-READY-25.12.4
