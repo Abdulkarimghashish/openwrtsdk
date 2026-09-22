@@ -19,8 +19,11 @@ jobs:
         with:
           package: mdk4
 
-      - name: Upload Built IPK Package
+      - name: Upload mdk4 package
         uses: actions/upload-artifact@v4
         with:
-          name: mdk4-ipk
-          path: bin/packages/**/*.ipk
+          name: mdk4-package
+          path: |
+            bin/packages/**/*.ipk
+            bin/targets/**/*.ipk
+            **/mdk4*.ipk
