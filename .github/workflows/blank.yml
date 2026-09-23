@@ -1,0 +1,15 @@
+name: Download K2P Factory
+on: workflow_dispatch
+jobs:
+  dl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Factory Bin
+        run: |
+          wget https://mirrors.tuna.tsinghua.edu.cn/immortalwrt/releases/23.05.4/targets/ramips/mt7621/immortalwrt-23.05.4-ramips-mt7621-phicomm_k2p-squashfs-factory.bin -O factory.bin
+          ls -lh factory.bin
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: K2P-FACTORY
+          path: factory.bin
