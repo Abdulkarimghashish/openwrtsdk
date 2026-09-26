@@ -2,7 +2,7 @@ name: Build mdk4 ipk
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
@@ -12,60 +12,48 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Find and download OpenWrt SDK (25.12.4 ramips/mt7621)
+      - name: Find and download OpenWrt SDK
         run: |
-          BASE="https://downloads.openwrt.org/releases/25.12.4/targets/ramips/mt7621/"
-          FILE=$(curl -sL $BASE | grep -oP 'href="[^"]*sdk[^"]*linux-x86_64.tar.xz"' | head -n1 | cut -d\" -f2)
-          if [ -z "$FILE" ]; then
-            echo "SDK file not found at $BASE"
-            curl -sL $BASE
-            exit 1
+          echo "Finding OpenWrt SDK for ramips/mt7621..."
+          # استخدام الروابط المستقرة أو البحث عن أحدث SDK متوفر للإصدار
+          SDK_BASE="https://downloads.openwrt.org/releases/23.05.3/targets/ramips/mt7621/"
+          # كمثال بديل مدعوم ومستقر تماماً للبناء، أو استخدام مسار مرن:
+          FILENAME=$(curl -s $SDK_BASE | grep -oE 'openwrt-sdk-[0-9.-]+-ramips-mt7621_[^"]+\.tar\.xz' | head -n 1)
+          
+          if [ -z "$FILENAME" ]; then
+            echo "Trying alternative path..."
+            SDK_URL="https://downloads.openwrt.org/snapshots/targets/ramips/mt7621/"
+            FILENAME=$(curl -s $SDK_URL | grep -oE 'openwrt-sdk-[^"]+-ramips-mt7621_[^"]+\.tar\.xz' | head -n 1)
+            FULL_URL="${SDK_URL}${FILENAME}"
+          else
+            FULL_URL="${SDK_BASE}${FILENAME}"
           fi
-          echo "Downloading $FILE ..."
-          wget --progress=dot:giga "${BASE}${FILE}" -O openwrt-sdk.tar.xz
+          
+          echo "Downloading from: $FULL_URL"
+          curl -o sdk.tar.xz "$FULL_URL"
 
       - name: Extract SDK
         run: |
-          tar -xJf openwrt-sdk.tar.xz
-          SDK_DIR=$(find . -maxdepth 2 -type d -name "openwrt-sdk-*" | head -n1)
-          echo "SDK_DIR=$SDK_DIR" > sdk_dir.env
-          ls -la "$SDK_DIR"
+          mkdir sdk
+          tar -xf sdk.tar.xz -C sdk --strip-components=1
+          rm sdk.tar.xz
 
       - name: Copy package into SDK
         run: |
-          . sdk_dir.env
-          mkdir -p "$SDK_DIR/package"
-          cp -r package/mdk4 "$SDK_DIR/package/"
-          ls -la "$SDK_DIR/package/mdk4"
+          mkdir -p sdk/package/mdk4
+          cp -r * sdk/package/mdk4/ 2>/dev/null || true
+          # إزالة مجلد السورس وworkflows من داخل حزمة الـ SDK لعدم التداخل
+          rm -rf sdk/package/mdk4/.git sdk/package/mdk4/.github sdk/package/mdk4/sdk
 
       - name: Build package
         run: |
-          SDK_DIR=$(cat sdk_dir.env | cut -d= -f2)
-          cd "$SDK_DIR"
+          cd sdk
           ./scripts/feeds update -a
           ./scripts/feeds install -a
-          make package/mdk4/compile V=s -j2 2>&1 | tee build_log.txt || true
-          find . -type f -name "mdk4*.ipk" || true
-          echo "Done build."
+          make package/mdk4/compile V=99
 
       - name: Upload resulting ipk(s)
-        run: |
-          SDK_DIR=$(cat sdk_dir.env | cut -d= -f2)
-          find "$SDK_DIR" -type f -name "mdk4*.ipk" -print > ipk_list.txt || true
-          if [ ! -s ipk_list.txt ]; then
-            echo "No ipk found. Attach build log instead."
-            cp "$SDK_DIR"/build_log.txt ./ || true
-            ls -la .
-          else
-            mkdir -p artifacts
-            while read -r p; do cp -v "$p" artifacts/; done < ipk_list.txt
-            ls -la artifacts
-          fi
-
-      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: mdk4-ipk
-          path: |
-            artifacts/*
-            build_log.txt
+          name: mdk4-ipk-ramips-mt7621
+          path: sdk/bin/packages/*/base/mdk4_*.ipk
