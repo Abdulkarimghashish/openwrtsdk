@@ -15,9 +15,7 @@ jobs:
       - name: Find and download OpenWrt SDK
         run: |
           echo "Finding OpenWrt SDK for ramips/mt7621..."
-          # استخدام الروابط المستقرة أو البحث عن أحدث SDK متوفر للإصدار
           SDK_BASE="https://downloads.openwrt.org/releases/23.05.3/targets/ramips/mt7621/"
-          # كمثال بديل مدعوم ومستقر تماماً للبناء، أو استخدام مسار مرن:
           FILENAME=$(curl -s $SDK_BASE | grep -oE 'openwrt-sdk-[0-9.-]+-ramips-mt7621_[^"]+\.tar\.xz' | head -n 1)
           
           if [ -z "$FILENAME" ]; then
@@ -42,7 +40,6 @@ jobs:
         run: |
           mkdir -p sdk/package/mdk4
           cp -r * sdk/package/mdk4/ 2>/dev/null || true
-          # إزالة مجلد السورس وworkflows من داخل حزمة الـ SDK لعدم التداخل
           rm -rf sdk/package/mdk4/.git sdk/package/mdk4/.github sdk/package/mdk4/sdk
 
       - name: Build package
@@ -50,6 +47,7 @@ jobs:
           cd sdk
           ./scripts/feeds update -a
           ./scripts/feeds install -a
+          make defconfig
           make package/mdk4/compile V=99
 
       - name: Upload resulting ipk(s)
