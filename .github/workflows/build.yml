@@ -19,7 +19,6 @@ jobs:
           FILENAME=$(curl -s $SDK_BASE | grep -oE 'openwrt-sdk-[0-9.-]+-ramips-mt7621_[^"]+\.tar\.xz' | head -n 1)
           
           if [ -z "$FILENAME" ]; then
-            echo "Trying alternative path..."
             SDK_URL="https://downloads.openwrt.org/snapshots/targets/ramips/mt7621/"
             FILENAME=$(curl -s $SDK_URL | grep -oE 'openwrt-sdk-[^"]+-ramips-mt7621_[^"]+\.tar\.xz' | head -n 1)
             FULL_URL="${SDK_URL}${FILENAME}"
@@ -27,7 +26,6 @@ jobs:
             FULL_URL="${SDK_BASE}${FILENAME}"
           fi
           
-          echo "Downloading from: $FULL_URL"
           curl -o sdk.tar.xz "$FULL_URL"
 
       - name: Extract SDK
@@ -39,8 +37,7 @@ jobs:
       - name: Copy package into SDK
         run: |
           mkdir -p sdk/package/mdk4
-          cp -r * sdk/package/mdk4/ 2>/dev/null || true
-          rm -rf sdk/package/mdk4/.git sdk/package/mdk4/.github sdk/package/mdk4/sdk
+          cp -r package/mdk4/* sdk/package/mdk4/
 
       - name: Build package
         run: |
