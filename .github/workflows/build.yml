@@ -1,54 +1,80 @@
-name: Build mdk4 ipk
+name: Build mdk4 IPK for K2P
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
+
     steps:
-      - name: Checkout repo
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Find and download OpenWrt SDK
+      - name: Download OpenWrt 25.12.4 SDK
         run: |
-          echo "Finding OpenWrt SDK for ramips/mt7621..."
-          SDK_BASE="https://downloads.openwrt.org/releases/23.05.3/targets/ramips/mt7621/"
-          FILENAME=$(curl -s $SDK_BASE | grep -oE 'openwrt-sdk-[0-9.-]+-ramips-mt7621_[^"]+\.tar\.xz' | head -n 1)
-          
-          if [ -z "$FILENAME" ]; then
-            SDK_URL="https://downloads.openwrt.org/snapshots/targets/ramips/mt7621/"
-            FILENAME=$(curl -s $SDK_URL | grep -oE 'openwrt-sdk-[^"]+-ramips-mt7621_[^"]+\.tar\.xz' | head -n 1)
-            FULL_URL="${SDK_URL}${FILENAME}"
-          else
-            FULL_URL="${SDK_BASE}${FILENAME}"
-          fi
-          
-          curl -o sdk.tar.xz "$FULL_URL"
+          set -e
+
+          SDK_URL="https://downloads.openwrt.org/releases/25.12.4/targets/ramips/mt7621/"
+          SDK_FILE="openwrt-sdk-25.12.4-ramips-mt7621_gcc-14.3.0_musl.Linux-x86_64.tar.zst"
+
+          echo "Downloading:"
+          echo "$SDK_URL$SDK_FILE"
+
+          curl -fL "$SDK_URL$SDK_FILE" -o sdk.tar.zst
 
       - name: Extract SDK
         run: |
+          set -e
+
           mkdir sdk
-          tar -xf sdk.tar.xz -C sdk --strip-components=1
-          rm sdk.tar.xz
 
-      - name: Copy package into SDK
-        run: |
-          mkdir -p sdk/package/mdk4
-          cp -r package/mdk4/* sdk/package/mdk4/
+          tar --zstd -xf sdk.tar.zst \
+            -C sdk \
+            --strip-components=1
 
-      - name: Build package
+          rm sdk.tar.zst
+
+      - name: Install feeds
+        working-directory: sdk
         run: |
-          cd sdk
+          set -e
+
           ./scripts/feeds update -a
           ./scripts/feeds install -a
-          make defconfig
-          make package/mdk4/compile V=99
 
-      - name: Upload resulting ipk(s)
+      - name: Copy mdk4 package
+        run: |
+          set -e
+
+          mkdir -p sdk/package/mdk4
+          cp package/mdk4/Makefile sdk/package/mdk4/Makefile
+
+          echo "===== MDK4 MAKEFILE ====="
+          nl -ba sdk/package/mdk4/Makefile
+
+      - name: Configure SDK
+        working-directory: sdk
+        run: |
+          set -e
+          make defconfig
+
+      - name: Build mdk4
+        working-directory: sdk
+        run: |
+          set -e
+          make package/mdk4/compile V=s
+
+      - name: Find IPK
+        run: |
+          echo "===== GENERATED IPK ====="
+          find sdk/bin/packages -type f -name 'mdk4_*.ipk' -print
+
+      - name: Upload IPK
         uses: actions/upload-artifact@v4
         with:
-          name: mdk4-ipk-ramips-mt7621
-          path: sdk/bin/packages/*/base/mdk4_*.ipk
+          name: mdk4-ipk-k2p-openwrt-25.12.4
+          path: sdk/bin/packages/**/mdk4_*.ipk
+          path: sdk/bin/packages/**/mdk4_*.ipk
