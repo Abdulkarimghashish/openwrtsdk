@@ -1,0 +1,71 @@
+name: Build mdk4 ipk
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Find and download OpenWrt SDK (25.12.4 ramips/mt7621)
+        run: |
+          BASE="https://downloads.openwrt.org/releases/25.12.4/targets/ramips/mt7621/"
+          FILE=$(curl -sL $BASE | grep -oP 'href="[^"]*sdk[^"]*linux-x86_64.tar.xz"' | head -n1 | cut -d\" -f2)
+          if [ -z "$FILE" ]; then
+            echo "SDK file not found at $BASE"
+            curl -sL $BASE
+            exit 1
+          fi
+          echo "Downloading $FILE ..."
+          wget --progress=dot:giga "${BASE}${FILE}" -O openwrt-sdk.tar.xz
+
+      - name: Extract SDK
+        run: |
+          tar -xJf openwrt-sdk.tar.xz
+          SDK_DIR=$(find . -maxdepth 2 -type d -name "openwrt-sdk-*" | head -n1)
+          echo "SDK_DIR=$SDK_DIR" > sdk_dir.env
+          ls -la "$SDK_DIR"
+
+      - name: Copy package into SDK
+        run: |
+          . sdk_dir.env
+          mkdir -p "$SDK_DIR/package"
+          cp -r package/mdk4 "$SDK_DIR/package/"
+          ls -la "$SDK_DIR/package/mdk4"
+
+      - name: Build package
+        run: |
+          SDK_DIR=$(cat sdk_dir.env | cut -d= -f2)
+          cd "$SDK_DIR"
+          ./scripts/feeds update -a
+          ./scripts/feeds install -a
+          make package/mdk4/compile V=s -j2 2>&1 | tee build_log.txt || true
+          find . -type f -name "mdk4*.ipk" || true
+          echo "Done build."
+
+      - name: Upload resulting ipk(s)
+        run: |
+          SDK_DIR=$(cat sdk_dir.env | cut -d= -f2)
+          find "$SDK_DIR" -type f -name "mdk4*.ipk" -print > ipk_list.txt || true
+          if [ ! -s ipk_list.txt ]; then
+            echo "No ipk found. Attach build log instead."
+            cp "$SDK_DIR"/build_log.txt ./ || true
+            ls -la .
+          else
+            mkdir -p artifacts
+            while read -r p; do cp -v "$p" artifacts/; done < ipk_list.txt
+            ls -la artifacts
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mdk4-ipk
+          path: |
+            artifacts/*
+            build_log.txt

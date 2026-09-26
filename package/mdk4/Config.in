@@ -1,0 +1,6 @@
+config PACKAGE_MDK4
+  bool "mdk4"
+  default n
+  help
+    mdk4 - wireless testing tool (aircrack-ng).
+    Choose Y to build the mdk4 package.
